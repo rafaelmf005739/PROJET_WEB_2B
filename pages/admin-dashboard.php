@@ -6,11 +6,9 @@ require_once __DIR__ . '/../includes/auth.php';
 $user = requireAuth(['admin']);
 $pdo  = getPDO();
 
-// ─── Actions POST ─────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    // ── Accepter une demande organisateur ──────────────
     if ($action === 'accept_request') {
         $reqId = (int)$_POST['req_id'];
 
@@ -20,17 +18,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $req = $stmt->fetch();
 
         if ($req) {
-            // Vérifier si l'email existe déjà dans utilisateurs
             $chk = $pdo->prepare("SELECT id FROM utilisateurs WHERE email = ?");
             $chk->execute([$req['email']]);
             $existingUser = $chk->fetch();
 
             if ($existingUser) {
-                // L'utilisateur existe → on lui change juste le rôle et l'association
                 $pdo->prepare("UPDATE utilisateurs SET role = 'organisateur', association = ? WHERE email = ?")
                     ->execute([$req['association'], $req['email']]);
             } else {
-                // L'utilisateur n'existe pas → on crée le compte avec un mot de passe temporaire
                 $parts  = explode(' ', $req['nom']);
                 $avatar = strtoupper(substr($parts[0], 0, 1) . (isset($parts[1]) ? substr($parts[1], 0, 1) : ''));
                 $tmpPwd = password_hash('password', PASSWORD_BCRYPT);
@@ -47,7 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Refuser une demande ────────────────────────────
     if ($action === 'reject_request') {
         $pdo->prepare("UPDATE demandes_organisateur SET statut = 'rejected' WHERE id = ?")
             ->execute([(int)$_POST['req_id']]);
@@ -55,7 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Ignorer un signalement ─────────────────────────
     if ($action === 'dismiss_report') {
         $pdo->prepare("UPDATE signalements SET traite = 1 WHERE id = ?")
             ->execute([(int)$_POST['sig_id']]);
@@ -63,7 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Supprimer un événement signalé ─────────────────
     if ($action === 'delete_event') {
         $pdo->prepare("DELETE FROM evenements WHERE id = ?")
             ->execute([(int)$_POST['event_id']]);
@@ -71,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Suspendre un compte ────────────────────────────
     if ($action === 'suspend_user') {
         $uid = (int)$_POST['user_id'];
         if ($uid !== $user['id']) {
@@ -82,7 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Réactiver un compte ────────────────────────────
     if ($action === 'activate_user') {
         $pdo->prepare("UPDATE utilisateurs SET actif = 1 WHERE id = ?")
             ->execute([(int)$_POST['user_id']]);
@@ -90,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Changer le rôle d'un utilisateur ──────────────
     if ($action === 'change_role') {
         $uid     = (int)$_POST['user_id'];
         $newRole = $_POST['new_role'] ?? '';
@@ -103,7 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ─── Données ──────────────────────────────────────────
 $activeTab = $_GET['tab'] ?? 'requests';
 
 $pendingRequests = $pdo->query("SELECT * FROM demandes_organisateur WHERE statut = 'pending' ORDER BY created_at DESC")->fetchAll();
@@ -208,7 +196,6 @@ include_once __DIR__ . '/../includes/header.php';
       </div>
     <?php endif; ?>
 
-  <!-- ─── Signalements ─── -->
   <?php elseif ($activeTab === 'reports'): ?>
     <?php if (empty($reports)): ?>
       <div class="empty-state"><div class="empty-icon">✅</div><h3>Aucun signalement non traité</h3></div>
@@ -238,7 +225,6 @@ include_once __DIR__ . '/../includes/header.php';
       </div>
     <?php endif; ?>
 
-  <!-- ─── Comptes utilisateurs ─── -->
   <?php elseif ($activeTab === 'users'): ?>
     <div class="users-list">
       <?php foreach ($users as $u): ?>
@@ -252,7 +238,6 @@ include_once __DIR__ . '/../includes/header.php';
         <span class="status-badge <?= $u['actif'] ? 'ouvert' : 'annule' ?>"><?= $u['actif'] ? 'Actif' : 'Suspendu' ?></span>
         <div class="user-row-actions">
           <?php if ($u['id'] !== $user['id']): ?>
-            <!-- Changer le rôle -->
             <form method="POST" style="display:inline">
               <input type="hidden" name="action"  value="change_role" />
               <input type="hidden" name="user_id" value="<?= $u['id'] ?>" />
@@ -263,7 +248,8 @@ include_once __DIR__ . '/../includes/header.php';
                 <option value="admin"        <?= $u['role']==='admin'        ? 'selected':'' ?>>Admin</option>
               </select>
             </form>
-            <!-- Suspendre / Réactiver -->
+
+
             <?php if ($u['actif']): ?>
               <form method="POST" style="display:inline">
                 <input type="hidden" name="action"  value="suspend_user" />
@@ -285,8 +271,8 @@ include_once __DIR__ . '/../includes/header.php';
       <?php endforeach; ?>
     </div>
 
-  <!-- ─── Tous les événements ─── -->
-  <?php elseif ($activeTab === 'events'): ?>
+
+    <?php elseif ($activeTab === 'events'): ?>
     <div class="requests-list">
       <?php foreach ($allEvents as $ev): ?>
       <div class="request-card">
